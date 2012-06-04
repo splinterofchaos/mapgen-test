@@ -1,5 +1,5 @@
 
-CXX = g++ -std=c++0x -Wall
+CXX = g++ -std=c++0x -Wall -g
 CC  = gcc
 
 mg_obj = .random.o

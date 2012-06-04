@@ -24,8 +24,8 @@ struct OffsetIterator : public std::iterator<std::random_access_iterator_tag, T>
     iterator  operator++(int) { iterator tmp=*this; ++*this; return tmp; }
     iterator  operator--(int) { iterator tmp=*this; --*this; return tmp; }
 
-    iterator operator+(int x) { cur += offset*x; return *this; }
-    iterator operator-(int x) { cur -= offset*x; return *this; }
+    iterator operator+(int x) { return iterator(cur+offset*x); }
+    iterator operator-(int x) { return iterator(cur-offset*x); }
 
     int operator-( iterator other ) { return (cur - other.cur) / offset; }
 
@@ -147,7 +147,7 @@ struct Grid
     { return get( pos.x(), pos.y() ); }
 
     iterator row_begin( size_t n ) { return iterator(tiles + n*width); }
-    iterator row_end( size_t n ) { return   iterator(tiles + (n+1) * width); }
+    iterator row_end( size_t n )   { return iterator(tiles + (n+1) * width); }
     const_iterator row_begin( size_t n ) const 
     {return const_iterator(tiles + n*width); }
     const_iterator row_end( size_t n )   const 

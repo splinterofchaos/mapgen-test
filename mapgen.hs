@@ -16,91 +16,110 @@ instance Show Tile where
 type MRow = [Tile]
 type RMap = [MRow] 
   
-show_map :: RMap -> String
-show_map rmap = 
-  unlines $ map (foldl accum "") rmap
-  where accum line tile = line ++ show tile
+showMap :: RMap -> String
+showMap = unlines . map (>>= show)
 
-make_map :: Coord -> RMap
-make_map (x,y) = replicate y (replicate x TWall)
+makeMap :: Coord -> RMap
+makeMap (x,y) = replicate y (replicate x TWall)
 
-split_gap :: Int -> Int -> [a] -> ([a],[a],[a])
-split_gap start size lst = (before, middle, after)
+splitGap :: Int -> Int -> [a] -> ([a],[a],[a])
+splitGap start size lst = (before, middle, after)
   where 
     (before,rest) = splitAt start lst
-    (middle,after) = splitAt size rest
+    (middle,after) = splitAt (abs size) rest
 
-dig_row :: Range -> MRow -> MRow
-dig_row (start,end) row = 
+digRow :: Range -> MRow -> MRow
+digRow (start,end) row = 
   before ++ replicate size TFloor ++ after
-  where 
-    size = end - start
-    (before,_,after) = split_gap start size row
-
-dig_room :: Area -> RMap -> RMap
-dig_room ((x,y),(u,v)) rmap =
-  ybefore ++ map (dig_row (x,u)) rows ++ yend
-  where 
-    (ybefore,rows,yend) = split_gap y (v-y) rmap
-
-to_range a b max minLen = (a',b')
   where
-    a' = a `mod` (max-minLen) + 1
-    range = max - a' - minLen
-    b' = (if range > 0 then b `mod` range else 0) 
-         + a' + minLen - 1
-random_room :: (RandomGen r) => r -> Coord -> (r,Area)
-random_room gen (w,h) = 
-  (g'''',((x',y'),(u',v'))) -- Note the reordering of xuyv to xyuv.
+    size = end - start + 1
+    (before,_,after) = splitGap start size row
+
+digRoom :: RMap -> Area -> RMap
+digRoom rmap ((x,y),(u,v)) =
+  ybefore ++ map (digRow (x,u)) rows ++ yend
   where 
-    minLen = 3
-    (x,g')    = next gen
-    (y,g'')   = next g'
-    (u,g''')  = next g''
-    (v,g'''') = next g'''
-    ((x',u'),(y',v')) = (to_range x u w minLen, 
-                         to_range y v h minLen)
+    (ybefore,rows,yend) = splitGap y (v-y+1) rmap
+
+randomRoom :: (RandomGen r) => r -> Coord -> Area
+randomRoom gen (w,h) = 
+  ((x',y'),(u',v')) -- Note the reordering of xuyv to xyuv.
+  where 
+    -- Here, x = n, so start with a random n.
+    [x,y,u,v] = take 4 . map fst $ iterate (next.snd) (n,g)
+    (n,g) = next gen
+
+    (x',u') = to_range x u w
+    (y',v') = to_range y v h
+    to_range a b max = (a',b')
+      where 
+        minlen = 3
+        a' = a `mod` (max-minlen-1) + 1
+        brange = max - a' - minlen
+        b' = (if brange > 0 then b `mod` brange else 0)
+             + a' + minlen - 1
     
-data Options = Options {optRooms::Integer,optDimensions::Coord}
+randomPoint :: RandomGen r => Area -> r -> Coord
+randomPoint ((x,y),(u,v)) gen = 
+  (x' `mod` (u-x+1) + x, y' `mod` (v-y+1) + y)
+  where (x',g) = next gen
+        (y',_) = next g
+
+randomRooms :: RandomGen r => r -> Coord -> [Area]
+randomRooms gen dims = randomRoom g1 dims : randomRooms g2 dims
+  where (g1,g2) = split gen
+
+digHallway :: RMap -> Area -> RMap
+digHallway m ((x,y),(u,v)) = foldl digRoom m 
+  -- Dig from (x,y) to (u,y) to (u,v).
+  [((u,min y v),(u,max y v)),((min x u,y),(max x u,y))]
+
+digRandomHallways :: RandomGen r => 
+                     RMap -> r -> [Area] -> RMap
+digRandomHallways m gen rooms
+  | length rooms < 2 = m
+  | otherwise = 
+    digRandomHallways m' g4  (tail rooms)
+  where 
+    (g1, gx) = split gen
+    (g2, g3) = split gx
+    ends = (randomPoint (rooms!!0) g1, randomPoint (tail rooms!!n) g2)
+    m' = digHallway m ends
+    (n',g4) = next g3
+    n = n' `mod` (length $ tail rooms)
+    
+splatter :: RandomGen r => Int -> r -> RMap -> RMap
+-- Splatter n random rooms onto m.
+splatter n gen m = 
+  digRandomHallways (foldl digRoom m rooms) g2 rooms
+  where 
+    (g1,g2) = split gen
+    rooms = take n $ randomRooms g1 (length (m!!0),length m)
+    center ((x,y),(u,v)) = ((x+u) `quot` 2, (y+v) `quot` 2)
+    
+data Options = Options {optRooms::Int,optDimensions::Coord}
 
 defaults :: Options
 defaults = Options {optRooms=5,optDimensions=(80,60)}
 
 options = 
-  [Option ['n'] ["rooms"] 
-      (ReqArg (\s op-> return op{optRooms=read s::Integer}) "ROOMS")
+  [Option "n" ["rooms"] 
+      (ReqArg (\s op-> return op{optRooms=read s::Int}) "ROOMS")
       "Number of rooms to dig.",
-   Option ['d'] ["dimensions"]
+   Option "d" ["dimensions"]
       (ReqArg (\s op-> case reads s :: [(Coord,String)] of
                   ((dims,_):_) -> 
                     return op { optDimensions = dims }
-                  otherwise -> 
-                    error "Dimensions must be in format (width,height)") 
+                  _ -> error "Dimensions must be in format (width,height)") 
               "DIMENSIONS") 
       "Dimensions of map."]
 
-random_rooms :: (Num a, RandomGen r) => a -> r -> (Coord) -> (r,[Area])
-random_rooms n gen dims = random_rooms' n gen dims []
-
-random_rooms' :: (Num a, RandomGen r) => 
-                 a -> r -> (Coord) -> [Area] -> (r,[Area])
-random_rooms' 0 gen dims rooms = (gen,rooms)
-random_rooms' n gen dims rooms = 
-  random_rooms' (n-1) gen' dims (r:rooms)
-  where (gen',r) = random_room gen dims
-        
-dig_rooms :: [Area] -> RMap -> RMap 
-dig_rooms [] m = m
-dig_rooms (r:rooms) m = dig_rooms rooms (dig_room r m)
-
 main = do
+  -- Parse command line.
   argv <- getArgs
   let (actions,noops,msgs) = getOpt RequireOrder options argv
   ops <- foldl (>>=) (return defaults) actions
   let Options { optRooms=rooms, optDimensions=dimensions } = ops
   
   gen <- newStdGen
-  let m = make_map dimensions
-      (g',rrooms) = random_rooms rooms gen dimensions
-      m' = dig_rooms rrooms m 
-  putStrLn $ show_map m'
+  putStrLn . showMap . splatter rooms gen $ makeMap dimensions
