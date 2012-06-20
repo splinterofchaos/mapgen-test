@@ -54,15 +54,15 @@ SYMBOL: *map* ! A string representing a map.
 
 : (room-map) ( room quot: ( i j -- ) -- )
 ! Set up the range in back.
-[ [ up-down [a,b] ] keep ] dip 
-'[  ! Outer loop ( j -- )
-    ! Capture the room and put the range behind j.
-    _ left-right [a,b] swap
-    ! Capture the quot, curry, and loop.
-    _ curry each ] 
+    [ [ up-down [a,b] ] keep ] dip 
+    '[  ! Outer loop ( j -- )
+        ! Capture the room and put the range behind j.
+        _ left-right [a,b] swap
+        ! Capture the quot, curry, and loop.
+        _ curry each ] 
 each ; inline recursive
 
-: (dig) ( i  j -- ) [ FLOOR ] 2dip map[]! ;
+: (dig) ( i  j -- ) [ FLOOR ] 2dip i'-map set-nth ;
 : dig   ( room -- ) [ (dig) ] (room-map)  ;
 
 : randr ( min max -- n ) dupd swap - 1 + random + ;

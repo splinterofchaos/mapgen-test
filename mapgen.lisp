@@ -37,17 +37,14 @@
   (setf (row-major-aref m (+ x (* y (array-dimension m 0)))) #\.))
 
 (defun dig-room (map room)
-  (let ((width (array-dimension map 0)))
     (loop for j from (area-up room) below (1+ (area-down room)) do
           (loop for i from (area-left room) below (1+ (area-right room))
-                do (dig-at map i j)))))
+                do (dig-at map i j))))
 
 (defun dig-hallway (map a b)
   ; Dig from (ax,ay) -> (bx,ay) -> (bx,by)
-  (let ((ax (elt a 0))
-        (bx (elt b 0))
-        (ay (elt a 1))
-        (by (elt b 1)))
+  (let ((ax (elt a 0)) (bx (elt b 0))
+        (ay (elt a 1)) (by (elt b 1)))
     (loop for x from (min ax bx) to (max ax bx) do
           (dig-at map x ay))
     (loop for y from (min ay by) to (max ay by) do

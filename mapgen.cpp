@@ -94,9 +94,8 @@ void dig_hallway( Vector<int,2> a, Vector<int,2> b )
 
 void splatter_pattern( int n )
 {
-    std::vector< Region > rooms;
-    while( n-- )
-        rooms.push_back( random_room() );
+    std::vector< Region > rooms(n);
+    std::generate( rooms.begin(), rooms.end(), random_room );
 
     for( size_t i=0; i < rooms.size(); i++ ) {
         dig_room( rooms[i] );
@@ -111,9 +110,9 @@ void splatter_pattern( int n )
 int main( int argc, char** argv )
 {
     struct {
-        unsigned int rooms = 3;
-        unsigned int width=80, height=60;
-    } opts;
+        unsigned int rooms;
+        unsigned int width, height;
+    } opts = { 3, 80, 60 };
 
     while( inc_arg(argc,argv) )
     {
