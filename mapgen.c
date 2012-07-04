@@ -22,21 +22,26 @@ typedef struct
 const int MINLEN = 5; 
 
 // A BSP node should have at least this much space.
-int NODELEN = 13;
+int NODELEN = 10;
+int NODELEN_MAX = 20;
 
-void init_grid( Grid* g, Vector dims )
+Grid new_grid( Vector dims )
 {
-    const int AREA = dims.x * dims.y;
-    
-    g->dimensions = dims;
-    g->tiles = malloc( AREA );
-    memset( g->tiles, '#', AREA );
+    Grid g = { dims, 0 };
+
+    const size_t AREA = (size_t) (dims.x * dims.y);
+    g.tiles = malloc( AREA );
+    memset( g.tiles, (int)'#', AREA );
+    return g;
 }
 
 void destroy_grid( Grid* g )
 {
-    free( g->tiles );
-    g->tiles = 0;
+    if( g ) {
+        if( g->tiles )
+            free( g->tiles );
+        g->tiles = 0;
+    }
 }
 
 char* grid_get( Grid g, Vector p )
@@ -205,27 +210,36 @@ void vsplit( Room r, Room* r1, Room* r2 )
 
 BspNode* new_bsp_node( Room area )
 {
+    int width  = area.right - area.left;
+    int height = area.down  - area.up;
     // A small node can't contain a room. 
-    if( area.right - area.left < NODELEN
-        || area.down - area.up < NODELEN )
+    if( width < NODELEN || height < NODELEN )
         // This node's parent will become a leaf.
         return 0;
 
     BspNode* node = malloc( sizeof(BspNode) );
     node->area = area;
+
+    const int VERT = 0; const int HOR  = 1;
+    int splitOrientation = randr( VERT, HOR );
     
     // Nodes that can't be split become leaves.
-    if( area.right - area.left < NODELEN+3
-        || area.down - area.up < NODELEN+3 ) {
-        bsp_leaf_init( node );
-        return node;
+    if( width < NODELEN*2 || height < NODELEN*2 ) {
+        // This cannot be split by one orientation.  If it can split by the
+        // other orientation, do so, else become a leaf.
+        if( height > NODELEN_MAX ) {
+            splitOrientation = HOR;
+        } else if( width > NODELEN_MAX ) { 
+            splitOrientation = VERT;
+        } else {
+            bsp_leaf_init( node );
+            return node;
+        }
     }
 
-    // Split this node.
     Room r1, r2;
-    if( area.right-area.left > area.down-area.up )
-         vsplit( area, &r1, &r2 );
-    else hsplit( area, &r1, &r2 );
+    if( splitOrientation ) hsplit( area, &r1, &r2 );
+    else                   vsplit( area, &r1, &r2 );
     node->one = new_bsp_node( r1 );
     node->two = new_bsp_node( r2 );
 
@@ -315,8 +329,7 @@ int main( int argc, char** argv )
     
     srand( time(0) );
     
-    Grid map;
-    init_grid( &map, opts.dimensions );
+    Grid map = new_grid( opts.dimensions );
      
     //splatter_pattern( map, opts.rooms );
     bsp_pattern( map );
