@@ -3,14 +3,26 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 typedef struct{ int x, y; } Vector;
+Vector vector( int x, int y )
+{
+    Vector v = { x, y };
+    return v;
+}
 
 typedef struct
 {
     Vector dimensions;
     char* tiles;
 } Grid;
+
+// Used in various places as the minimum dimension of a room.
+const int MINLEN = 5; 
+
+// A BSP node should have at least this much space.
+int NODELEN = 13;
 
 void init_grid( Grid* g, Vector dims )
 {
@@ -49,19 +61,32 @@ typedef struct {
 
 int randr( int min, int max )
 {
+    if( min > max ) {
+        int tmp = max;
+        max = min;
+        min = tmp;
+    }
+
     return rand() % (max-min+1) + min;
 }
 
 Room random_room( Vector dims )
 {
-    const int MIN_LEN = 4;
-    
     Room r;
-    r.left  = randr( 1, dims.x-MIN_LEN-1 );
-    r.up    = randr( 1, dims.y-MIN_LEN-1 );
-    r.right = randr( r.left+MIN_LEN, dims.x-1 );
-    r.down  = randr( r.up+MIN_LEN, dims.y-1 );
+    r.left  = randr( 1, dims.x-MINLEN-1 );
+    r.up    = randr( 1, dims.y-MINLEN-1 );
+    r.right = randr( r.left+MINLEN, dims.x-1 );
+    r.down  = randr( r.up+MINLEN, dims.y-1 );
     
+    return r;
+}
+
+Room random_room_in_room( Room r )
+{
+    r.left  = randr( r.left, r.right-MINLEN );
+    r.right = randr( r.left+MINLEN, r.right );
+    r.up    = randr( r.up, r.down-MINLEN );
+    r.down  = randr( r.up+MINLEN, r.down );
     return r;
 }
 
@@ -74,8 +99,8 @@ Vector random_point( Room r )
 void dig_room( Grid g, const Room r )
 {
     int x, y;
-    for( x = r.left; x < r.right; x++ ) {
-        for( y = r.up; y < r.down; y++ ) {
+    for( x = r.left; x < r.right+1; x++ ) {
+        for( y = r.up; y < r.down+1; y++ ) {
             Vector v = { x, y };
             *grid_get( g, v ) = '.';
         }
@@ -127,6 +152,133 @@ void splatter_pattern( Grid g, int n )
     free( rooms );
 }
 
+struct BspNode_t { 
+    Room area; 
+    struct BspNode_t *one, *two; 
+};
+
+typedef struct BspNode_t BspNode;
+
+int leaf( BspNode* node )
+{
+    return !node->one || !node->two;
+}
+int too_small( BspNode* node )
+{
+    Room r = node->area;
+    return r.right - r.left < NODELEN 
+        || r.down  - r.up   < NODELEN;
+}
+
+void delete_bsp_node( BspNode* node );
+
+void bsp_leaf_init( BspNode* node )
+{
+    // Delete will do nothing on an already-nulled node.
+    // This just ensures they ARE nulled.
+    delete_bsp_node( node->one );
+    delete_bsp_node( node->two );
+    node->one = node->two = 0;
+    node->area = random_room_in_room( node->area );
+}
+
+// Split r in two, horizontally.
+// (Used by new_bsp_node.)
+void hsplit( Room r, Room* r1, Room* r2 )
+{
+    int split = randr( r.up+NODELEN, r.down-NODELEN );
+    r1->left  = r2->left  = r.left;
+    r1->right = r2->right = r.right;
+    r1->up   = r.up;   r1->down = split - 1;
+    r2->down = r.down; r2->up   = split + 1;
+}
+
+// Vertical.
+void vsplit( Room r, Room* r1, Room* r2 )
+{
+    int split = randr( r.left+NODELEN, r.right-NODELEN );
+    r1->up   = r2->up   = r.up;
+    r1->down = r2->down = r.down;
+    r1->left  = r.left;  r1->right = split - 1;
+    r2->right = r.right; r2->left  = split + 1; 
+}
+
+BspNode* new_bsp_node( Room area )
+{
+    // A small node can't contain a room. 
+    if( area.right - area.left < NODELEN
+        || area.down - area.up < NODELEN )
+        // This node's parent will become a leaf.
+        return 0;
+
+    BspNode* node = malloc( sizeof(BspNode) );
+    node->area = area;
+    
+    // Nodes that can't be split become leaves.
+    if( area.right - area.left < NODELEN+3
+        || area.down - area.up < NODELEN+3 ) {
+        bsp_leaf_init( node );
+        return node;
+    }
+
+    // Split this node.
+    Room r1, r2;
+    if( area.right-area.left > area.down-area.up )
+         vsplit( area, &r1, &r2 );
+    else hsplit( area, &r1, &r2 );
+    node->one = new_bsp_node( r1 );
+    node->two = new_bsp_node( r2 );
+
+    // Since the recursive calls may return zero, 
+    // we may need to return a leaf.
+    if( leaf(node) )
+        bsp_leaf_init( node );
+
+    return node;
+}
+
+void delete_bsp_node( BspNode* node )
+{
+    if( node ) {
+        delete_bsp_node( node->one );
+        delete_bsp_node( node->two );
+        free( node );
+    }
+}
+
+// Dig and connect each room.
+// Returns a position within the hallway between the two rooms.
+Vector bsp_dig( Grid g, BspNode* node )
+{
+    if( leaf(node) ) {
+        dig_room( g, node->area );
+        return random_point( node->area );
+    } else {
+        BspNode *one = node->one, *two = node->two;
+        Vector vone = bsp_dig( g, one );
+        Vector vtwo = bsp_dig( g, two );
+        dig_hallway( g, vone, vtwo );
+        
+        // We need a point within the hallway to return. 
+        // dig_hallway guarantees (x1,y1) -> (x2,y1) -> (x2,y2).
+        // First choose (x1,y1)->(x2,y1) or (x2,y1)->(x2,y2).
+        Vector v;
+        if( randr(0,1) )
+            v = vector( vtwo.x, randr(vone.y, vtwo.y) );
+        else
+            v = vector( randr(vone.x, vtwo.x), vone.y );
+        return v;
+    }
+}
+
+void bsp_pattern( Grid g )
+{
+    Room bounds = { 1, g.dimensions.x-2, 1, g.dimensions.y-2 };
+    BspNode* bsp = new_bsp_node( bounds );
+    bsp_dig( g, bsp );
+    delete_bsp_node( bsp );
+}
+
 int inc_arg( int* argc, char*** argv )
 {
     (*argv)++;
@@ -166,7 +318,8 @@ int main( int argc, char** argv )
     Grid map;
     init_grid( &map, opts.dimensions );
      
-    splatter_pattern( map, opts.rooms );
+    //splatter_pattern( map, opts.rooms );
+    bsp_pattern( map );
     
     print_grid( map );
     
