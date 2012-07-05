@@ -3,6 +3,13 @@ import System.Random
 
 import System.Console.GetOpt
 import System.Environment(getArgs, getProgName)
+import Control.Monad.State
+
+-- Thanks to monoidal for this trick.
+-- https://gist.github.com/2877633
+type Rand = State StdGen
+rand m = do a <- state next
+            return (a `mod` m)
 
 type Coord = (Int,Int)
 type Range = (Int,Int)
@@ -41,60 +48,49 @@ digRoom rmap ((x,y),(u,v)) =
   where 
     (ybefore,rows,yend) = splitGap y (v-y+1) rmap
 
-randomRoom :: (RandomGen r) => r -> Coord -> Area
-randomRoom gen (w,h) = 
-  ((x',y'),(u',v')) -- Note the reordering of xuyv to xyuv.
+randomRoom :: Coord -> Rand Area
+randomRoom (w,h) = do
+  (x,u) <- gen_range w
+  (y,v) <- gen_range h
+  return ((x,y),(u,v))
   where 
-    -- Here, x = n, so start with a random n.
-    [x,y,u,v] = take 4 . map fst $ iterate (next.snd) (n,g)
-    (n,g) = next gen
-
-    (x',u') = to_range x u w
-    (y',v') = to_range y v h
-    to_range a b max = (a',b')
-      where 
-        minlen = 3
-        a' = a `mod` (max-minlen-1) + 1
-        brange = max - a' - minlen
-        b' = (if brange > 0 then b `mod` brange else 0)
-             + a' + minlen - 1
+    minlen = 3
+    gen_range m = do
+        a <- rand (m-minlen-1)
+        let a' = a + 1
+            brange = m - a' - minlen
+        b <- rand (max 1 brange)
+        let b' = b + a' + minlen - 1
+        return (a',b')
     
-randomPoint :: RandomGen r => Area -> r -> Coord
-randomPoint ((x,y),(u,v)) gen = 
-  (x' `mod` (u-x+1) + x, y' `mod` (v-y+1) + y)
-  where (x',g) = next gen
-        (y',_) = next g
-
-randomRooms :: RandomGen r => r -> Coord -> [Area]
-randomRooms gen dims = randomRoom g1 dims : randomRooms g2 dims
-  where (g1,g2) = split gen
+randomPoint :: Area -> Rand Coord
+randomPoint ((x,y),(u,v)) = 
+  do x' <- rand (u-x+1)
+     y' <- rand (v-y+1)
+     return (x' + x, y' + y)
 
 digHallway :: RMap -> Area -> RMap
-digHallway m ((x,y),(u,v)) = foldl digRoom m 
-  -- Dig from (x,y) to (u,y) to (u,v).
-  [((u,min y v),(u,max y v)),((min x u,y),(max x u,y))]
+digHallway m ((x,y),(u,v)) = 
+    -- Dig from (x,y) to (u,y) to (u,v).
+    foldl digRoom m 
+        [((u,min y v),(u,max y v)),((min x u,y),(max x u,y))]
 
-digRandomHallways :: RandomGen r => 
-                     RMap -> r -> [Area] -> RMap
-digRandomHallways m gen rooms
-  | length rooms < 2 = m
+digRandomHallways :: RMap -> [Area] -> Rand RMap
+digRandomHallways m rooms
+  | length rooms < 2 = return m
   | otherwise = 
-    digRandomHallways m' g4  (tail rooms)
-  where 
-    (g1, gx) = split gen
-    (g2, g3) = split gx
-    ends = (randomPoint (rooms!!0) g1, randomPoint (tail rooms!!n) g2)
-    m' = digHallway m ends
-    (n',g4) = next g3
-    n = n' `mod` (length $ tail rooms)
+    do n <- rand (length $ tail rooms)
+       end1 <- randomPoint (head rooms)
+       end2 <- randomPoint (tail rooms!!n)
+       let m' = digHallway m (end1, end2)
+       digRandomHallways m' (tail rooms)
     
-splatter :: RandomGen r => Int -> r -> RMap -> RMap
+splatter :: Int -> RMap -> Rand RMap
 -- Splatter n random rooms onto m.
-splatter n gen m = 
-  digRandomHallways (foldl digRoom m rooms) g2 rooms
+splatter n m = 
+  do rooms <- replicateM n $ randomRoom (length (head m),length m)
+     digRandomHallways (foldl digRoom m rooms) rooms
   where 
-    (g1,g2) = split gen
-    rooms = take n $ randomRooms g1 (length (m!!0),length m)
     center ((x,y),(u,v)) = ((x+u) `quot` 2, (y+v) `quot` 2)
     
 data Options = Options {optRooms::Int,optDimensions::Coord}
@@ -122,4 +118,4 @@ main = do
   let Options { optRooms=rooms, optDimensions=dimensions } = ops
   
   gen <- newStdGen
-  putStrLn . showMap . splatter rooms gen $ makeMap dimensions
+  putStrLn . showMap $ evalState (splatter rooms $ makeMap dimensions) gen
