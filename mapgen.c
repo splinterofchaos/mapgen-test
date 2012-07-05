@@ -19,11 +19,11 @@ typedef struct
 } Grid;
 
 // Used in various places as the minimum dimension of a room.
-const int MINLEN = 5; 
+const int MINLEN = 6; 
 
 // A BSP node should have at least this much space.
-int NODELEN = 10;
-int NODELEN_MAX = 20;
+// It must provide enough space for a random room.
+int NODELEN = 9;
 
 Grid new_grid( Vector dims )
 {
@@ -187,11 +187,21 @@ void bsp_leaf_init( BspNode* node )
     node->area = random_room_in_room( node->area );
 }
 
+int split_pos( int min, int max )
+{
+    int range = max - min;
+    if( range > 4 ) {
+        min += range / 4;
+        max -= range / 4;
+    }
+    return randr( min, max );
+}
+
 // Split r in two, horizontally.
 // (Used by new_bsp_node.)
 void hsplit( Room r, Room* r1, Room* r2 )
 {
-    int split = randr( r.up+NODELEN, r.down-NODELEN );
+    int split = split_pos( r.up+NODELEN, r.down-NODELEN );
     r1->left  = r2->left  = r.left;
     r1->right = r2->right = r.right;
     r1->up   = r.up;   r1->down = split - 1;
@@ -201,50 +211,54 @@ void hsplit( Room r, Room* r1, Room* r2 )
 // Vertical.
 void vsplit( Room r, Room* r1, Room* r2 )
 {
-    int split = randr( r.left+NODELEN, r.right-NODELEN );
+    int split = split_pos( r.left+NODELEN, r.right-NODELEN );
     r1->up   = r2->up   = r.up;
     r1->down = r2->down = r.down;
     r1->left  = r.left;  r1->right = split - 1;
     r2->right = r.right; r2->left  = split + 1; 
 }
 
-BspNode* new_bsp_node( Room area )
+BspNode* new_bsp_node( Room area, int depth )
 {
-    int width  = area.right - area.left;
-    int height = area.down  - area.up;
-    // A small node can't contain a room. 
-    if( width < NODELEN || height < NODELEN )
-        // This node's parent will become a leaf.
-        return 0;
+    int width  = area.right - area.left + 1;
+    int height = area.down  - area.up   + 1;
 
     BspNode* node = malloc( sizeof(BspNode) );
     node->area = area;
+    node->one = node->two = 0;
+
+    if( depth <= 1 ) { 
+        bsp_leaf_init( node );
+        return node;
+    }
 
     const int VERT = 0; const int HOR  = 1;
     int splitOrientation = randr( VERT, HOR );
     
-    // Nodes that can't be split become leaves.
-    if( width < NODELEN*2 || height < NODELEN*2 ) {
-        // This cannot be split by one orientation.  If it can split by the
-        // other orientation, do so, else become a leaf.
-        if( height > NODELEN_MAX ) {
-            splitOrientation = HOR;
-        } else if( width > NODELEN_MAX ) { 
-            splitOrientation = VERT;
-        } else {
-            bsp_leaf_init( node );
-            return node;
-        }
+    const float MAXRATIO = 1.2f;
+
+    int notWideEnough = width  < NODELEN * 2;
+    int notTallEnough = height < NODELEN * 2;
+    int tooTall = height > width  * MAXRATIO;
+    int tooWide = width  > height * MAXRATIO;
+
+    if( notWideEnough && notTallEnough ) {
+        bsp_leaf_init( node );
+        return node;
+    } else if( notWideEnough || tooTall ) {
+        splitOrientation = HOR;
+    } else if( notTallEnough || tooWide ) {
+        splitOrientation = VERT;
     }
 
     Room r1, r2;
     if( splitOrientation ) hsplit( area, &r1, &r2 );
     else                   vsplit( area, &r1, &r2 );
-    node->one = new_bsp_node( r1 );
-    node->two = new_bsp_node( r2 );
+    node->one = new_bsp_node( r1, depth-1 );
+    node->two = new_bsp_node( r2, depth-1 );
 
-    // Since the recursive calls may return zero, 
-    // we may need to return a leaf.
+    // node may not have spawned children for a number of reasons.
+    // Just make sure it leaves in a valid state.
     if( leaf(node) )
         bsp_leaf_init( node );
 
@@ -285,10 +299,10 @@ Vector bsp_dig( Grid g, BspNode* node )
     }
 }
 
-void bsp_pattern( Grid g )
+void bsp_pattern( Grid g, int depth )
 {
     Room bounds = { 1, g.dimensions.x-2, 1, g.dimensions.y-2 };
-    BspNode* bsp = new_bsp_node( bounds );
+    BspNode* bsp = new_bsp_node( bounds, depth );
     bsp_dig( g, bsp );
     delete_bsp_node( bsp );
 }
@@ -332,7 +346,7 @@ int main( int argc, char** argv )
     Grid map = new_grid( opts.dimensions );
      
     //splatter_pattern( map, opts.rooms );
-    bsp_pattern( map );
+    bsp_pattern( map, opts.rooms );
     
     print_grid( map );
     
