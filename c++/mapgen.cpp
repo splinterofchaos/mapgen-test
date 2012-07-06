@@ -13,17 +13,6 @@
 typedef Grid<char> MapGen;
 MapGen mgMap;
 
-struct Room : public Region
-{
-    Room( size_t, size_t, size_t, size_t );
-    Room() {}
-};
-
-Room::Room( size_t l, size_t r, size_t u, size_t d )
-    : Region(l,r,u,d)
-{
-}
-
 void random_range( size_t& min, size_t& max )
 {
     const size_t MIN_LENGTH = 4;
@@ -40,7 +29,7 @@ Room random_room()
     return r;
 }
 
-void dig_room( const Region& r )
+void dig_room( const Room& r )
 {
     std::fill( mgMap.reg_begin(r), mgMap.reg_end(r), '.' );
 }
@@ -59,7 +48,7 @@ bool get_arg( const char* const arg, int& argc, char**& argv )
     return argc > 0 and strcmp(arg, *argv) == 0 and inc_arg(argc,argv);
 }
 
-Vector<int,2> random_point( const Region& r )
+Vector<int,2> random_point( const Room& r )
 {
     return vector( random(r.left, r.right), random(r.up, r.down) );
 }
@@ -94,7 +83,7 @@ void dig_hallway( Vector<int,2> a, Vector<int,2> b )
 
 void splatter_pattern( int n )
 {
-    std::vector< Region > rooms(n);
+    std::vector< Room > rooms(n);
     std::generate( rooms.begin(), rooms.end(), random_room );
 
     for( size_t i=0; i < rooms.size(); i++ ) {

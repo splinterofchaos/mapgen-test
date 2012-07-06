@@ -34,9 +34,9 @@ struct OffsetIterator : public std::iterator<std::random_access_iterator_tag, T>
 };
 
 template< typename T >
-struct RegionIterator  : public std::iterator< std::bidirectional_iterator_tag, T>
+struct RoomIterator  : public std::iterator< std::bidirectional_iterator_tag, T>
 {
-    typedef RegionIterator iterator;
+    typedef RoomIterator iterator;
     typedef char& reference;
     typedef const char& const_reference;
 
@@ -44,7 +44,7 @@ struct RegionIterator  : public std::iterator< std::bidirectional_iterator_tag, 
     T* cur;
     size_t offset, width;
     
-    RegionIterator( T* start, size_t offset, size_t width ) 
+    RoomIterator( T* start, size_t offset, size_t width ) 
         : base(start), cur(base), offset(offset), width(width) {}
 
     iterator& operator++() 
@@ -76,21 +76,21 @@ struct RegionIterator  : public std::iterator< std::bidirectional_iterator_tag, 
     reference operator*() { return *cur; }
 };
 
-struct Region
+struct Room
 {
     size_t left, right, up, down;
-    Region(size_t l, size_t r, size_t u, size_t d)
+    Room(size_t l, size_t r, size_t u, size_t d)
     {
         left = l; right = r;
         up = u; down = d;
     }
 
-    Region() {}
+    Room() {}
 };
 
 
 template< typename T >
-bool operator == ( const RegionIterator<T>& a, const RegionIterator<T>& b )
+bool operator == ( const RoomIterator<T>& a, const RoomIterator<T>& b )
 { return a.base == b.base or a.cur == b.cur; } 
 template< typename T >
 bool operator == ( const OffsetIterator<T>& a, const OffsetIterator<T>& b )
@@ -100,7 +100,7 @@ template< typename T >
 bool operator != ( const OffsetIterator<T>& a, const OffsetIterator<T>& b )
 { return not ( a == b ); }
 template< typename T >
-bool operator != ( const RegionIterator<T>& a, const RegionIterator<T>& b )
+bool operator != ( const RoomIterator<T>& a, const RoomIterator<T>& b )
 { return not ( a == b ); }
 
 
@@ -109,10 +109,10 @@ struct Grid
 {
     typedef Tile& reference;
     typedef OffsetIterator<Tile> iterator;
-    typedef RegionIterator<Tile> region_iterator;
+    typedef RoomIterator<Tile> room_iterator;
     typedef const Tile& const_reference;
     typedef OffsetIterator<const Tile> const_iterator;
-    typedef RegionIterator<const Tile> const_region_iterator;
+    typedef RoomIterator<const Tile> const_room_iterator;
 
     Tile* tiles;
     size_t width, height;
@@ -162,24 +162,24 @@ struct Grid
     const_iterator col_end( size_t n ) const 
     { return const_iterator(tiles + area() + n, width); }
 
-    region_iterator reg_begin( const Region& r )
+    room_iterator reg_begin( const Room& r )
     {
-        return region_iterator( &get(r.left, r.up), 
+        return room_iterator( &get(r.left, r.up), 
                                 width, r.right - r.left );
     }
-    region_iterator reg_end( const Region& r )
+    room_iterator reg_end( const Room& r )
     {
-        return region_iterator( &get(r.left, r.down+1), 
+        return room_iterator( &get(r.left, r.down+1), 
                                 width, r.right-r.left );
     }
-    const_region_iterator reg_begin( const Region& r ) const
+    const_room_iterator reg_begin( const Room& r ) const
     {
-        return const_region_iterator( &get(r.left, r.up), 
+        return const_room_iterator( &get(r.left, r.up), 
                                       width, r.right - r.left );
     }
-    const_region_iterator reg_end( const Region& r ) const
+    const_room_iterator reg_end( const Room& r ) const
     {
-        return const_region_iterator( &get(r.left, r.down+1), 
+        return const_room_iterator( &get(r.left, r.down+1), 
                                       width, r.right-r.left );
     }
 
