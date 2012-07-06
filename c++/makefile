@@ -1,11 +1,22 @@
 
-CXX = g++ -std=c++0x -Wall -g
+CXX = g++ -std=c++0x 
 CC  = gcc
 
-mg_obj = .random.o
+CFLAGS=-Wall -Wextra
 
-mapgen : mapgen.cpp Vector.h Grid.h ${mg_obj}
-	${CXX} mapgen.cpp ${mg_obj} -o mapgen
+COMPILE=${CXX} ${CFLAGS}
+
+obj = .random.o .bsp.o .grid.o
+
+mapgen : mapgen.cpp Vector.h Grid.h Bsp.h ${obj}
+	${COMPILE} mapgen.cpp ${obj} -o mapgen
+
+.bsp.o : Bsp.* mapgen.h .grid.o
+	${COMPILE} -c Bsp.cpp -o .bsp.o
+
+.grid.o : Grid.* .random.o Vector.h
+	${COMPILE} -c Grid.cpp -o .grid.o
 
 .random.o : random.*
-	${CXX} -c random.cpp -o .random.o
+	${COMPILE} -c random.cpp -o .random.o
+

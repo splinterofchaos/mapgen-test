@@ -1,10 +1,12 @@
 
-#pragma once
-
 #include "Vector.h"
 
 #include <iterator>
 #include <algorithm>
+
+#pragma once
+
+typedef Vector<int,2> Vec;
 
 template< typename T>
 struct OffsetIterator : public std::iterator<std::random_access_iterator_tag, T>
@@ -76,19 +78,6 @@ struct RoomIterator  : public std::iterator< std::bidirectional_iterator_tag, T>
     reference operator*() { return *cur; }
 };
 
-struct Room
-{
-    size_t left, right, up, down;
-    Room(size_t l, size_t r, size_t u, size_t d)
-    {
-        left = l; right = r;
-        up = u; down = d;
-    }
-
-    Room() {}
-};
-
-
 template< typename T >
 bool operator == ( const RoomIterator<T>& a, const RoomIterator<T>& b )
 { return a.base == b.base or a.cur == b.cur; } 
@@ -103,6 +92,20 @@ template< typename T >
 bool operator != ( const RoomIterator<T>& a, const RoomIterator<T>& b )
 { return not ( a == b ); }
 
+struct Room
+{
+    static const int MINLEN;
+
+    size_t left, right, up, down;
+    Room(size_t l, size_t r, size_t u, size_t d);
+    Room( const Room& other );
+    Room() {}
+};
+
+// Split the room horizontally or vertically.
+// len specifies the minimum length of the split room.
+std::pair<Room,Room> hsplit( const Room& r, int len );
+std::pair<Room,Room> vsplit( const Room& r, int len );
 
 template< typename Tile >
 struct Grid
