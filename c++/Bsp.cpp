@@ -53,11 +53,7 @@ void Bsp::_init( int depth )
 
 Bsp::Bsp( int depth )
     : area (
-        // BUG: Is the room an improper size?
-        // In order to rooms go up to one tile from the edge, we should
-        // subtract width and height by the same number (2; -1 for the edge, -1
-        // offset), but this works and that doesn't. 
-        1, mgMap.width  - 1, 
+        1, mgMap.width  - 2, 
         1, mgMap.height - 2
     )
 {
