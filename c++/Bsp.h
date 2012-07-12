@@ -14,6 +14,7 @@ struct Bsp
 
     Bsp( int depth );
     Bsp( Room, int depth );
+    Bsp( Bsp&& );
 
     bool leaf() const; 
 
@@ -22,3 +23,4 @@ struct Bsp
 };
 
 void dig( const Bsp& );
+Vector<int,2> random_point( const Bsp& );

@@ -66,6 +66,11 @@ Bsp::Bsp( Room a, int depth )
     _init( depth );
 }
 
+Bsp::Bsp( Bsp&& bsp )
+    : one( std::move(bsp.one) ), two( std::move(bsp.two) )
+{
+}
+
 bool Bsp::leaf() const
 {
     return not (one and two);
@@ -96,4 +101,15 @@ Vec _dig( const Bsp& node )
 void dig( const Bsp& node )
 {
     _dig( node );
+}
+
+Vector<int,2> random_point( const Bsp& node )
+{
+    if( node.leaf() )
+        return random_point( node.area );
+
+    else if( random(0,1) )
+        return random_point( *node.one );
+    else
+        return random_point( *node.two );
 }

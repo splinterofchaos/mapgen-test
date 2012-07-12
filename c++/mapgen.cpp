@@ -87,7 +87,7 @@ void minmax( T& a, T& b )
         std::swap( a, b );
 }
 
-void splatter_pattern( int n )
+std::vector<Room> splatter_pattern( int n )
 {
     std::vector< Room > rooms(n);
     typedef Room (*RoomGenType) ();
@@ -101,19 +101,23 @@ void splatter_pattern( int n )
                 random_point( rooms[random(i+1,rooms.size()-1)] ) 
             );
     }
+
+    return rooms;
 }
 
 #include "Bsp.h"
-void bsp_pattern( int depth )
+Bsp bsp_pattern( int depth )
 {
-    dig( Bsp(depth) );
+    Bsp bsp( depth );
+    dig( bsp );
+    return bsp;
 }
 
 int main( int argc, char** argv )
 {
-    enum Pattern{ SPLATTER, BSP };
+    enum Pattern_t{ SPLATTER, BSP };
     struct {
-        Pattern pattern;
+        Pattern_t pattern;
         unsigned int rooms;
         unsigned int width, height;
     } opts = { BSP, 3, 80, 60 };
@@ -138,10 +142,22 @@ int main( int argc, char** argv )
 
     mgMap.reset( opts.width, opts.height, '#' );
 
+    Vector<int,2> spawnPoint( 0, 0 );
+
     switch( opts.pattern )
     {
-      case SPLATTER: splatter_pattern( opts.rooms ); break;
-      case BSP:      bsp_pattern( opts.rooms );      break;
+      case SPLATTER: 
+        {
+            std::vector<Room> rooms = splatter_pattern( opts.rooms ); 
+            spawnPoint = random_point (
+                rooms[ random(0, rooms.size()-1) ]
+            );
+        }
+      break;
+      case BSP:      
+        Bsp bsp = bsp_pattern( opts.rooms );
+        spawnPoint = random_point( bsp );
+      break;
     }
 
     for( size_t y=0; y < mgMap.height; y++ ) {
@@ -149,6 +165,7 @@ int main( int argc, char** argv )
                    std::ostream_iterator<char>(std::cout));
         std::cout << std::endl;
     }
-    
-    std::cout << std::endl;
+
+    std::cout << "X " << spawnPoint.x() << ' ' << spawnPoint.y() 
+        << std::endl;
 }
