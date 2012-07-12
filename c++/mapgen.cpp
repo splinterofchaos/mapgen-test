@@ -69,6 +69,7 @@ bool inc_arg( int& argc, char**& argv )
     return --argc > 0;
 }
 
+// Get argument-taking option arg and return it in argv;
 bool get_arg( const char* const arg, int& argc, char**& argv )
 {
     return argc > 0 and strcmp(arg, *argv) == 0 and inc_arg(argc,argv);
@@ -110,31 +111,38 @@ void bsp_pattern( int depth )
 
 int main( int argc, char** argv )
 {
+    enum Pattern{ SPLATTER, BSP };
     struct {
+        Pattern pattern;
         unsigned int rooms;
         unsigned int width, height;
-    } opts = { 3, 80, 60 };
+    } opts = { BSP, 3, 80, 60 };
 
     while( inc_arg(argc,argv) )
     {
-        if( get_arg("-d", argc, argv) ) {
-            if( (*argv)[strlen(*argv)-1] != ')'
-                or sscanf(*argv, "(%u,%u)", 
-                           &opts.width, &opts.height) != 2 ) {
-                fprintf( stderr, "Option -d requires arguments in "
-                                 "form (width,height).\n" );
-                exit( 1 );
-            }
+        if( get_arg("-w", argc, argv) ) {
+            opts.width = atoi( *argv );
+        } else if( get_arg("-h", argc, argv) ) {
+            opts.height = atoi( *argv );
         } else if( get_arg("-n", argc, argv) ) {
             opts.rooms = atoi( *argv );
+        } else if( get_arg("--pattern", argc, argv) ) {
+            if( strcmp(*argv, "bsp") == 0 )
+                opts.pattern = BSP;
+            else if( strcmp(*argv, "splatter") == 0 ) 
+                opts.pattern = SPLATTER;
+            else
+                fprintf( stderr, "--splatter: Unknown option '%s'\n", *argv );
         }
-
     }
 
     mgMap.reset( opts.width, opts.height, '#' );
 
-    //splatter_pattern( opts.rooms );
-    bsp_pattern( opts.rooms );
+    switch( opts.pattern )
+    {
+      case SPLATTER: splatter_pattern( opts.rooms ); break;
+      case BSP:      bsp_pattern( opts.rooms );      break;
+    }
 
     for( size_t y=0; y < mgMap.height; y++ ) {
         std::copy( mgMap.row_begin(y), mgMap.row_end(y), 

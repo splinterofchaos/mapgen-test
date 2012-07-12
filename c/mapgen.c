@@ -160,6 +160,8 @@ int inc_arg( int* argc, char*** argv )
     return --(*argc) > 0;
 }
 
+// If argv equals the argument-taking option arg, returns true and increments
+// argv to point to the argument.
 int get_arg( const char* const arg, int* argc, char*** argv )
 {
     return *argc > 0 && strcmp(arg, **argv) == 0 && inc_arg(argc,argv);
@@ -167,38 +169,44 @@ int get_arg( const char* const arg, int* argc, char*** argv )
 
 int main( int argc, char** argv )
 {
+    enum Pattern{ SPLATTER, BSP };
     struct {
-        char* strategy;
-        size_t rooms;
+        enum Pattern pattern;
+
+        union {
+            int rooms; // Number of rooms (SPLATTER).
+            int depth; // Depth of tree (BSP).
+        };
+
         Vector dimensions;
-    } opts = {"bsp",3,{80,60}};
+    } opts = {BSP,{4},{80,60}};
 
     while( inc_arg(&argc,&argv) )
     {
-        if( get_arg("-d", &argc, &argv) ) {
-            if( (*argv)[strlen(*argv)-1] == ')'
-                && sscanf(*argv, "(%u,%u)", 
-                           &opts.dimensions.x, &opts.dimensions.y) != 2 ) {
-                fprintf( stderr, "Option -d requires arguments in "
-                                 "form (width,height).\n" );
-                exit( 1 );
-            }
+        if( get_arg("-w", &argc, &argv) ) {
+            opts.dimensions.x = atoi( *argv );
+        } else if( get_arg("-h", &argc, &argv) ) {
+            opts.dimensions.y = atoi( *argv );
         } else if( get_arg("-n", &argc, &argv) ) {
             opts.rooms = atoi( *argv );
-        } else if( get_arg("--strategy", &argc, &argv) ) {
-            opts.strategy = *argv;
+        } else if( get_arg("--pattern", &argc, &argv) ) {
+            if( strcmp(*argv, "splatter") == 0 )
+                opts.pattern = SPLATTER;
+            else if( strcmp(*argv, "bsp") == 0 )
+                opts.pattern = BSP;
+            else
+                fprintf( stderr, "Unknown pattern: '%s'\n", *argv );
         }
-
     }
     
     srand( time(0) );
     
     Grid map = new_grid( opts.dimensions );
      
-    if( strcmp(opts.strategy, "splatter") == 0 )
-        splatter_pattern( map, opts.rooms );
-    else if( strcmp(opts.strategy, "bsp") == 0 )
-        bsp_pattern( map, opts.rooms );
+    switch( opts.pattern ) {
+      case SPLATTER: splatter_pattern( map, opts.rooms ); break;
+      case BSP:      bsp_pattern( map, opts.depth );      break;
+    }
     
     print_grid( map );
     
