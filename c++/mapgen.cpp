@@ -120,7 +120,8 @@ int main( int argc, char** argv )
         Pattern_t pattern;
         unsigned int rooms;
         unsigned int width, height;
-    } opts = { BSP, 3, 80, 60 };
+        unsigned int spawnPoints;
+    } opts = { BSP, 3, 80, 60, 5 };
 
     while( inc_arg(argc,argv) )
     {
@@ -130,6 +131,8 @@ int main( int argc, char** argv )
             opts.height = atoi( *argv );
         } else if( get_arg("-n", argc, argv) ) {
             opts.rooms = atoi( *argv );
+        } else if( get_arg("-X", argc, argv) ) {
+            opts.spawnPoints = atoi( *argv );
         } else if( get_arg("--pattern", argc, argv) ) {
             if( strcmp(*argv, "bsp") == 0 )
                 opts.pattern = BSP;
@@ -142,6 +145,7 @@ int main( int argc, char** argv )
 
     mgMap.reset( opts.width, opts.height, '#' );
 
+    std::vector< Vector<int,2> > spawnPoints;
     Vector<int,2> spawnPoint( 0, 0 );
 
     switch( opts.pattern )
@@ -149,14 +153,17 @@ int main( int argc, char** argv )
       case SPLATTER: 
         {
             std::vector<Room> rooms = splatter_pattern( opts.rooms ); 
-            spawnPoint = random_point (
-                rooms[ random(0, rooms.size()-1) ]
-            );
+            while( opts.spawnPoints-- )
+                spawnPoints.push_back ( 
+                    random_point( rooms[ random(0, rooms.size()-1) ] )
+                );
         }
       break;
       case BSP:      
         Bsp bsp = bsp_pattern( opts.rooms );
         spawnPoint = random_point( bsp );
+        while( opts.spawnPoints-- )
+            spawnPoints.push_back( random_point(bsp) );
       break;
     }
 
@@ -166,6 +173,6 @@ int main( int argc, char** argv )
         std::cout << std::endl;
     }
 
-    std::cout << "X " << spawnPoint.x() << ' ' << spawnPoint.y() 
-        << std::endl;
+    for( auto pt : spawnPoints )
+        std::cout << "X " << pt.x() << ' ' << pt.y() << std::endl;
 }
