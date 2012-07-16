@@ -32,6 +32,11 @@ Room random_room()
     return random_room( r );
 }
 
+Vector<int,2> random_point( const Room& r )
+{
+    return vector( random(r.left, r.right), random(r.up, r.down) );
+}
+
 void dig_room( const Room& r )
 {
     std::fill( mgMap.reg_begin(r), mgMap.reg_end(r), '.' );
@@ -73,11 +78,6 @@ bool inc_arg( int& argc, char**& argv )
 bool get_arg( const char* const arg, int& argc, char**& argv )
 {
     return argc > 0 and strcmp(arg, *argv) == 0 and inc_arg(argc,argv);
-}
-
-Vector<int,2> random_point( const Room& r )
-{
-    return vector( random(r.left, r.right), random(r.up, r.down) );
 }
 
 template< typename T >
