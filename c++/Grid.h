@@ -178,12 +178,12 @@ struct Grid
     const_room_iterator reg_begin( const Room& r ) const
     {
         return const_room_iterator( &get(r.left, r.up), 
-                                      width, r.right - r.left );
+                                      width, r.right-r.left+1 );
     }
     const_room_iterator reg_end( const Room& r ) const
     {
         return const_room_iterator( &get(r.left, r.down+1), 
-                                      width, r.right-r.left );
+                                      width, r.right-r.left+1 );
     }
 
     iterator begin() { return tiles; }
