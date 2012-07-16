@@ -113,6 +113,19 @@ Bsp bsp_pattern( int depth )
     return bsp;
 }
 
+std::vector< Vector<int,2> > spawnPoints;
+
+template< class F >
+void add_spawn_point( F f )
+{
+    Vector<int,2> v = f();
+    if( std::find(std::begin(spawnPoints),std::end(spawnPoints),v)
+        != std::end( spawnPoints ) )
+        add_spawn_point( f );
+    else
+        spawnPoints.push_back( v );
+}
+
 int main( int argc, char** argv )
 {
     enum Pattern_t{ SPLATTER, BSP };
@@ -145,7 +158,6 @@ int main( int argc, char** argv )
 
     mgMap.reset( opts.width, opts.height, '#' );
 
-    std::vector< Vector<int,2> > spawnPoints;
     Vector<int,2> spawnPoint( 0, 0 );
 
     switch( opts.pattern )
@@ -154,8 +166,8 @@ int main( int argc, char** argv )
         {
             std::vector<Room> rooms = splatter_pattern( opts.rooms ); 
             while( opts.spawnPoints-- )
-                spawnPoints.push_back ( 
-                    random_point( rooms[ random(0, rooms.size()-1) ] )
+                add_spawn_point (  
+                    [&]{ return random_point( rooms[random(0,rooms.size()-1)] ); }
                 );
         }
       break;
@@ -163,7 +175,7 @@ int main( int argc, char** argv )
         Bsp bsp = bsp_pattern( opts.rooms );
         spawnPoint = random_point( bsp );
         while( opts.spawnPoints-- )
-            spawnPoints.push_back( random_point(bsp) );
+            add_spawn_point( [&]{return random_point(bsp);} );
       break;
     }
 
